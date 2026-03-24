@@ -37,3 +37,6 @@ model/runs/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Artefacts de training
+artifacts/

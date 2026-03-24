@@ -41,19 +41,26 @@ if [ ${#PYTHON_FILES[@]} -eq 0 ]; then
 else
     if command -v flake8 >/dev/null 2>&1; then
         flake8 "${PYTHON_FILES[@]}" --max-line-length=120 --statistics
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}ECHEC : erreurs flake8 detectees.${NC}"
-            ERRORS=$((ERRORS + 1))
-        else
-            echo -e "${GREEN}OK : flake8 passe.${NC}"
-        fi
+        FLAKE8_STATUS=$?
+    elif command -v python >/dev/null 2>&1; then
+        python -m flake8 "${PYTHON_FILES[@]}" --max-line-length=120 --statistics
+        FLAKE8_STATUS=$?
     else
+        FLAKE8_STATUS=0
         echo -e "${YELLOW}WARN : flake8 non installe, verification ignoree.${NC}"
+    fi
+
+    if [ $FLAKE8_STATUS -ne 0 ]; then
+        echo -e "${RED}ECHEC : erreurs flake8 detectees.${NC}"
+        ERRORS=$((ERRORS + 1))
+    elif command -v flake8 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
+        echo -e "${GREEN}OK : flake8 passe.${NC}"
     fi
 
     if command -v python >/dev/null 2>&1; then
         python -m py_compile "${PYTHON_FILES[@]}"
-        if [ $? -ne 0 ]; then
+        PYCOMPILE_STATUS=$?
+        if [ $PYCOMPILE_STATUS -ne 0 ]; then
             echo -e "${RED}ECHEC : py_compile a detecte une erreur.${NC}"
             ERRORS=$((ERRORS + 1))
         else
@@ -67,43 +74,64 @@ fi
 echo -e "\n${YELLOW}[2/4] Verification formatage (black)...${NC}"
 if [ ${#PYTHON_FILES[@]} -eq 0 ]; then
     echo -e "${YELLOW}WARN : aucun fichier Python a formater.${NC}"
-elif command -v black >/dev/null 2>&1; then
-    black --check "${PYTHON_FILES[@]}"
-    if [ $? -ne 0 ]; then
+else
+    if command -v black >/dev/null 2>&1; then
+        black --check "${PYTHON_FILES[@]}"
+        BLACK_STATUS=$?
+    elif command -v python >/dev/null 2>&1; then
+        python -m black --check "${PYTHON_FILES[@]}"
+        BLACK_STATUS=$?
+    else
+        BLACK_STATUS=0
+        echo -e "${YELLOW}WARN : black non installe, verification ignoree.${NC}"
+    fi
+
+    if [ $BLACK_STATUS -ne 0 ]; then
         echo -e "${RED}ECHEC : formatage black invalide.${NC}"
         ERRORS=$((ERRORS + 1))
-    else
+    elif command -v black >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
         echo -e "${GREEN}OK : formatage black valide.${NC}"
     fi
-else
-    echo -e "${YELLOW}WARN : black non installe, verification ignoree.${NC}"
 fi
 
 echo -e "\n${YELLOW}[3/4] Detection de secrets...${NC}"
 if command -v detect-secrets-hook >/dev/null 2>&1; then
     detect-secrets-hook "${STAGED_FILES[@]}"
-    if [ $? -ne 0 ]; then
+    SECRET_STATUS=$?
+    if [ $SECRET_STATUS -ne 0 ]; then
         echo -e "${RED}ECHEC : secret potentiel detecte.${NC}"
         ERRORS=$((ERRORS + 1))
     else
         echo -e "${GREEN}OK : aucun secret detecte.${NC}"
     fi
-elif command -v detect-secrets >/dev/null 2>&1; then
+else
     SECRET_FOUND=0
     for file in "${STAGED_FILES[@]}"; do
-        if [ -f "$file" ] && detect-secrets scan "$file" 2>/dev/null | grep -q '"hashed_secret"'; then
-            echo -e "${RED}ALERTE : secret potentiel detecte dans $file${NC}"
-            SECRET_FOUND=1
+        if [ -f "$file" ]; then
+            if command -v detect-secrets >/dev/null 2>&1; then
+                detect-secrets scan "$file" 2>/dev/null | grep -q '"hashed_secret"'
+                MATCH_STATUS=$?
+            elif command -v python >/dev/null 2>&1; then
+                python -m detect_secrets.main scan "$file" 2>/dev/null | grep -q '"hashed_secret"'
+                MATCH_STATUS=$?
+            else
+                MATCH_STATUS=1
+            fi
+
+            if [ $MATCH_STATUS -eq 0 ]; then
+                echo -e "${RED}ALERTE : secret potentiel detecte dans $file${NC}"
+                SECRET_FOUND=1
+            fi
         fi
     done
 
     if [ $SECRET_FOUND -ne 0 ]; then
         ERRORS=$((ERRORS + 1))
-    else
+    elif command -v detect-secrets >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
         echo -e "${GREEN}OK : aucun secret detecte.${NC}"
+    else
+        echo -e "${YELLOW}WARN : detect-secrets non installe, verification ignoree.${NC}"
     fi
-else
-    echo -e "${YELLOW}WARN : detect-secrets non installe, verification ignoree.${NC}"
 fi
 
 echo -e "\n${YELLOW}[4/4] Verification taille des fichiers (> 5Mo)...${NC}"

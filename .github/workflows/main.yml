@@ -1,0 +1,243 @@
+name: MLOps CI/CD Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests and validation
+    runs-on: ubuntu-latest
+    outputs:
+      accuracy: ${{ steps.metrics.outputs.accuracy }}
+      f1_score: ${{ steps.metrics.outputs.f1_score }}
+      threshold: ${{ steps.metrics.outputs.threshold }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        run: |
+          flake8 src/ tests/ app.py --max-line-length=120 --statistics
+
+      - name: Check formatting with black
+        run: |
+          black --check src/ tests/ app.py
+
+      - name: Train sentiment model
+        run: |
+          python -m src.train
+
+      - name: Read exported metrics
+        id: metrics
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          metrics = json.loads(Path("model/metrics.json").read_text(encoding="utf-8"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"accuracy={metrics['accuracy']}\n")
+              handle.write(f"f1_score={metrics['f1_score']}\n")
+              handle.write(f"threshold={metrics['threshold']}\n")
+          PY
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --tb=short --junitxml=test-results.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.xml
+
+      - name: Upload trained model
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: model/
+
+  notify:
+    name: Email notification
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+
+    steps:
+      - name: Notify success
+        if: needs.test.result == 'success'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "SUCCESS [MLOps Pipeline] ${{ github.repository }}"
+          to: ${{ secrets.TEAM_EMAILS }}
+          from: ${{ secrets.SMTP_USERNAME }}
+          body: |
+            Pipeline MLOps - Rapport de validation
+
+            Statut : SUCCES
+            Repository : ${{ github.repository }}
+            Branche : ${{ github.ref_name }}
+            Commit : ${{ github.sha }}
+            Auteur : ${{ github.actor }}
+            Workflow : ${{ github.workflow }}
+
+            Resume d'execution :
+            - Tests unitaires : PASS
+            - Lint flake8 : PASS
+            - Formatage black : PASS
+            - Accuracy modele : ${{ needs.test.outputs.accuracy }}
+            - F1-score modele : ${{ needs.test.outputs.f1_score }}
+            - Seuil attendu : ${{ needs.test.outputs.threshold }}
+
+            Le pipeline est valide. Le deploiement vers Hugging Face peut etre lance
+            automatiquement lors d'un push sur main.
+
+            Lien du workflow :
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify failure
+        if: needs.test.result != 'success'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "FAILURE [MLOps Pipeline] ${{ github.repository }}"
+          to: ${{ secrets.TEAM_EMAILS }}
+          from: ${{ secrets.SMTP_USERNAME }}
+          body: |
+            Pipeline MLOps - Rapport d'echec
+
+            Statut : ${{ needs.test.result }}
+            Repository : ${{ github.repository }}
+            Branche : ${{ github.ref_name }}
+            Commit : ${{ github.sha }}
+            Auteur : ${{ github.actor }}
+
+            Une ou plusieurs etapes du pipeline ont echoue. Points a verifier :
+            - installation des dependances
+            - entrainement du modele
+            - tests unitaires
+            - regles de lint et de formatage
+
+            Lien du workflow :
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  deploy:
+    name: Deploy to Hugging Face
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    env:
+      HF_MODEL_REPO: jackbrayan17/mlops-sentiment-analysis
+      HF_SPACE_REPO: jackbrayan17/mlops-sentiment-analysis-demo
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deployment dependencies
+        run: |
+          pip install huggingface-hub transformers torch
+
+      - name: Download trained model
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model
+          path: model/
+
+      - name: Upload model to Hugging Face Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+          from huggingface_hub import HfApi
+          api = HfApi()
+          api.create_repo(
+              repo_id='${{ env.HF_MODEL_REPO }}',
+              repo_type='model',
+              exist_ok=True,
+              token='${{ secrets.HF_TOKEN }}'
+          )
+          api.upload_folder(
+              folder_path='model',
+              repo_id='${{ env.HF_MODEL_REPO }}',
+              repo_type='model',
+              token='${{ secrets.HF_TOKEN }}'
+          )
+          print('Model uploaded to Hugging Face Hub')
+          "
+
+      - name: Deploy Gradio app to Hugging Face Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+          from huggingface_hub import HfApi
+          api = HfApi()
+          api.create_repo(
+              repo_id='${{ env.HF_SPACE_REPO }}',
+              repo_type='space',
+              space_sdk='gradio',
+              exist_ok=True,
+              token='${{ secrets.HF_TOKEN }}'
+          )
+          api.upload_file(
+              path_or_fileobj='app.py',
+              path_in_repo='app.py',
+              repo_id='${{ env.HF_SPACE_REPO }}',
+              repo_type='space',
+              token='${{ secrets.HF_TOKEN }}'
+          )
+          space_reqs = 'transformers>=4.46,<5\ntorch>=2.5,<3\ngradio>=5.4,<6\n'
+          with open('space_requirements.txt', 'w', encoding='utf-8') as handle:
+              handle.write(space_reqs)
+          api.upload_file(
+              path_or_fileobj='space_requirements.txt',
+              path_in_repo='requirements.txt',
+              repo_id='${{ env.HF_SPACE_REPO }}',
+              repo_type='space',
+              token='${{ secrets.HF_TOKEN }}'
+          )
+          api.upload_folder(
+              folder_path='model',
+              path_in_repo='model',
+              repo_id='${{ env.HF_SPACE_REPO }}',
+              repo_type='space',
+              token='${{ secrets.HF_TOKEN }}'
+          )
+          print('Gradio app deployed to Hugging Face Spaces')
+          "

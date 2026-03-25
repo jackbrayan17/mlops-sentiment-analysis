@@ -1,221 +1,340 @@
-# 🔍 MLOps Sentiment Analysis - Produits Tech
+# MLOps Sentiment Analysis - Produits Tech
 
-> **TP Final Git & GitHub - Master 2 IABD**
-> Pipeline MLOps complet pour l'analyse de sentiments sur les avis de produits technologiques.
+> TP final Git/GitHub - Master 2 IABD
+> Pipeline MLOps complet pour classer des avis de produits technologiques.
 
-## 📋 Table des matières
+## Objectif
 
-- [Objectif](#objectif)
-- [Architecture](#architecture)
-- [Installation](#installation)
-- [Utilisation](#utilisation)
-- [Git Flow](#git-flow)
-- [Git LFS](#git-lfs)
-- [Git Hooks](#git-hooks)
-- [Sécurité](#sécurité)
-- [CI/CD Pipeline](#cicd-pipeline)
-- [Déploiement Hugging Face](#déploiement-hugging-face)
-- [Équipe](#équipe)
+Le projet industrialise un modele de classification de sentiments avec les
+exigences du TP :
 
-## 🎯 Objectif
+- Git Flow avec branches `main`, `develop`, `feature/*` et `release/*`
+- Git LFS pour les artefacts lourds
+- hook `pre-commit` local pour la qualite et la securite
+- workflow GitHub Actions pour test, validation, notification et deploiement
+- publication sur Hugging Face Hub et Hugging Face Spaces
 
-Développer et industrialiser un modèle d'IA pour la **classification de sentiments** sur les avis de produits tech, en utilisant les meilleures pratiques MLOps :
-- Versionnement du code (Git Flow)
-- Gestion des fichiers volumineux (Git LFS)
-- Automatisation (Git Hooks + GitHub Actions)
-- Déploiement continu (Hugging Face Hub & Spaces)
+## Architecture
 
-## 🏗️ Architecture
-
-```
+```text
 mlops-sentiment-analysis/
-├── .github/
-│   └── workflows/
-│       └── main.yml              # Pipeline CI/CD
-├── hooks/
-│   └── pre-commit                # Hook de pré-commit
-├── src/
-│   ├── __init__.py
-│   └── train.py                  # Script d'entraînement
-├── tests/
-│   ├── __init__.py
-│   └── test_model.py             # Tests unitaires
-├── model/                        # Modèle entraîné (Git LFS)
-├── app.py                        # Interface Gradio
-├── requirements.txt              # Dépendances Python
-├── .gitattributes                # Configuration Git LFS
-├── .gitignore                    # Fichiers ignorés
-├── .pre-commit-config.yaml       # Configuration pre-commit
-├── setup_hooks.sh                # Script d'installation des hooks
-└── README.md                     # Ce fichier
+|-- .github/workflows/main.yml
+|-- data/tech_reviews.csv
+|-- docs/wiki/
+|-- hooks/pre-commit
+|-- model/
+|-- src/
+|   |-- __init__.py
+|   |-- inference.py
+|   `-- train.py
+|-- tests/
+|   |-- __init__.py
+|   `-- test_model.py
+|-- app.py
+|-- requirements.txt
+|-- .gitattributes
+|-- .gitignore
+|-- .pre-commit-config.yaml
+|-- setup_hooks.sh
+`-- README.md
 ```
 
-## ⚙️ Installation
+## Choix techniques
 
-### Prérequis
+- Modele : `distilbert-base-uncased-finetuned-sst-2-english`
+- Donnees : dataset local versionne `data/tech_reviews.csv`
+- Inference partagee : `src/inference.py`
+- Interface : Gradio
+- CI/CD : GitHub Actions + notifications SMTP + deploiement Hugging Face
 
-- Python 3.11+
-- Git avec Git LFS
-- Compte GitHub
-- Compte Hugging Face
+Le dataset local rend le projet plus stable en TP et en CI : l'entrainement ne
+depend pas d'un dataset externe pour reproduire les resultats.
 
-### Étapes
+## Installation
+
+### Prerequis
+
+- Python 3.11 recommande pour la CI
+- Git et Git LFS
+- un compte GitHub
+- un compte Hugging Face
+
+### Setup local
 
 ```bash
-# 1. Cloner le dépôt
 git clone https://github.com/jackbrayan17/mlops-sentiment-analysis.git
 cd mlops-sentiment-analysis
 
-# 2. Créer un environnement virtuel
-python -m venv venv
-source venv/bin/activate   # Linux/Mac
-# venv\Scripts\activate    # Windows
+python -m venv .venv
+source .venv/bin/activate      # Linux / macOS
+# .venv\Scripts\activate       # Windows PowerShell
 
-# 3. Installer les dépendances
 pip install -r requirements.txt
-
-# 4. Installer Git LFS
 git lfs install
-
-# 5. Installer les Git Hooks
 bash setup_hooks.sh
 ```
 
-## 🚀 Utilisation
+## Utilisation
 
-### Entraînement du modèle
+### 1. Entrainement du modele
 
 ```bash
 python -m src.train
 ```
 
-Le script :
-1. Charge le modèle pré-entraîné DistilBERT (SST-2)
-2. Fine-tune sur un sous-ensemble du dataset
-3. Évalue les performances (accuracy > 80%)
-4. Sauvegarde le modèle dans `model/`
+Ce script :
 
-### Tests
+1. charge le modele de base DistilBERT deja entraine sur SST-2
+2. lit les avis du fichier `data/tech_reviews.csv`
+3. fine-tune le modele sur les reviews tech
+4. exporte le modele dans `model/`
+5. ecrit les metriques dans `model/metrics.json`
+
+Variables optionnelles :
+
+```bash
+TRAIN_EPOCHS=2
+TRAIN_BATCH_SIZE=8
+TRAIN_LEARNING_RATE=2e-5
+ACCURACY_THRESHOLD=0.80
+```
+
+### 2. Tests unitaires
 
 ```bash
 pytest tests/ -v
 ```
 
-Les tests vérifient :
-- Accuracy > 80% (seuil de qualité)
-- F1-score > 75%
-- Inférence correcte (sentiments positifs/négatifs)
-- Forme des sorties du modèle
-- Présence des fichiers du modèle
+Les tests valident :
 
-### Interface Gradio
+- accuracy >= 0.80
+- F1-score >= 0.75
+- inference positive et negative coherente
+- somme des probabilites = 1
+- presence des artefacts du modele
+
+### 3. Application Gradio
 
 ```bash
 python app.py
 ```
 
-Ouvre une interface web pour tester le modèle en temps réel.
+L'application charge le modele depuis `model/` et permet de tester des avis
+tech en temps reel.
 
-## 🌿 Git Flow
+## Git Flow
 
-Nous suivons rigoureusement le **Git Flow** :
+Workflow attendu :
 
-| Branche | Rôle |
-|---------|------|
-| `main` | Code stable et déployé |
-| `develop` | Branche d'intégration |
-| `feature/*` | Nouvelles fonctionnalités |
-| `release/*` | Préparation de la mise en production |
+1. `main` contient uniquement le code stable et deploye
+2. `develop` sert a integrer les fonctionnalites
+3. chaque tache vit dans une branche `feature/*`
+4. `release/*` sert a preparer une mise en production
 
-**Règles :**
-- ❌ Aucun commit direct sur `main`
-- ✅ Toujours passer par des Pull Requests
-- ✅ Review obligatoire avant merge
+Regles du depot :
 
-## 📦 Git LFS
+- aucun commit direct sur `main`
+- passage obligatoire par Pull Request
+- validation CI avant merge
 
-Les fichiers volumineux sont suivis par **Git LFS** :
+Branches deja utilisees pour ce TP :
+
+- `feature/model-training`
+- `feature/gradio-app`
+- `feature/ci-cd`
+
+## Simulation de travail en equipe
+
+Comme le TP doit simuler un vrai travail collaboratif, on peut reproduire le
+fonctionnement de plusieurs membres de l'equipe meme sur une seule machine.
+
+### Repartition simple des roles
+
+- `Jack Brayan` : pilotage du projet, integration sur `develop`, release
+- `Membre 1` : entrainement, dataset, tests
+- `Membre 2` : application Gradio, UX, demo
+- `Membre 3` : CI/CD, hooks, documentation, deploiement
+
+### Regle de travail a chaque update
+
+Pour chaque evolution du TP :
+
+1. partir de `develop`
+2. creer une branche `feature/*` ciblee
+3. faire une petite serie de commits propres
+4. executer les verifications locales
+5. ouvrir une Pull Request vers `develop`
+6. merger dans `main` seulement quand `develop` est stable
+
+### Exemple de simulation avec plusieurs auteurs
+
+#### Update de Jack
 
 ```bash
-# Fichiers trackés
-*.pkl, *.h5, *.pt, *.onnx, *.bin, *.safetensors
+git checkout develop
+git checkout -b feature/training-improvement
 
-# Vérifier les fichiers LFS
-git lfs ls-files
+git add src/train.py tests/test_model.py
+git -c user.name="Jack Brayan" -c user.email="jack@example.com" commit -m "feat: improve training and tests"
+```
 
-# Ajouter un nouveau type
+#### Update d'un membre equipe app
+
+```bash
+git checkout develop
+git checkout -b feature/gradio-enhancement
+
+git add app.py README.md
+git -c user.name="Membre 2" -c user.email="membre2@example.com" commit -m "feat: improve gradio interface"
+```
+
+#### Update d'un membre equipe CI/CD
+
+```bash
+git checkout develop
+git checkout -b feature/ci-update
+
+git add .github/workflows/main.yml hooks/pre-commit README.md
+git -c user.name="Membre 3" -c user.email="membre3@example.com" commit -m "chore: improve ci and project docs"
+```
+
+### Routine de verification avant chaque merge
+
+Avant de fusionner une branche dans `develop`, executer :
+
+```bash
+python -m src.train
+python -m pytest tests/ -v --tb=short
+python -m flake8 src tests app.py --max-line-length=120 --statistics
+python -m black --check src tests app.py
+```
+
+### Routine de merge pour simuler le projet en equipe
+
+```bash
+git checkout develop
+git merge --no-ff feature/training-improvement
+git merge --no-ff feature/gradio-enhancement
+git merge --no-ff feature/ci-update
+```
+
+Quand tout est valide sur `develop` :
+
+```bash
+git checkout main
+git merge --no-ff develop
+git push origin main
+```
+
+Ce schema permet de montrer clairement dans l'historique Git :
+
+- qui a travaille sur quoi
+- quel type de fonctionnalite a ete ajoute
+- comment les branches ont ete integrees
+- que la validation a ete faite avant passage sur `main`
+
+## Git LFS
+
+Le fichier `.gitattributes` configure Git LFS pour :
+
+- `*.pkl`
+- `*.h5`
+- `*.pt`
+- `*.onnx`
+- `*.bin`
+- `*.safetensors`
+
+Commandes utiles :
+
+```bash
+git lfs install
 git lfs track "*.onnx"
+git lfs ls-files
 ```
 
-## 🪝 Git Hooks
+## Git Hooks et securite
 
-### Hook de pré-commit
+Le hook `hooks/pre-commit` copie dans `.git/hooks/pre-commit` verifie :
 
-Le hook `.git/hooks/pre-commit` vérifie automatiquement :
+- flake8 sur les fichiers Python stages
+- `python -m py_compile` pour attraper les erreurs de syntaxe
+- black en mode `--check`
+- detect-secrets ou detect-secrets-hook
+- blocage des fichiers > 5 Mo non suivis par Git LFS
 
-1. **Syntaxe** : `flake8` (PEP 8 compliance)
-2. **Formatage** : `black` (formatage automatique)
-3. **Secrets** : `detect-secrets` (détection de clés API)
-4. **Taille fichiers** : Bloque les fichiers > 5 Mo non trackés par LFS
+Le fichier `.pre-commit-config.yaml` complete ce dispositif avec les hooks
+`check-added-large-files`, `black`, `flake8` et `detect-secrets`.
 
-### Installation
+Secrets GitHub a configurer :
 
-```bash
-bash setup_hooks.sh
-```
+- `HF_TOKEN`
+- `SMTP_USERNAME`
+- `SMTP_PASSWORD`
+- `TEAM_EMAILS`
 
-## 🔒 Sécurité
+## Pipeline CI/CD
 
-### detect-secrets (local)
+Le workflow `.github/workflows/main.yml` s'execute :
 
-```bash
-# Scanner le projet
-detect-secrets scan > .secrets.baseline
+- a chaque Pull Request vers `develop` ou `main`
+- a chaque push sur `main`
 
-# Vérifier avant un commit
-detect-secrets scan --baseline .secrets.baseline
-```
+### Etape 1 - Test et validation
 
-### GitHub Secrets
+- installation des dependances
+- lint `flake8`
+- verification de formatage `black --check`
+- entrainement du modele
+- lecture des metriques exportees
+- execution des tests `pytest`
+- publication des artefacts `test-results` et `trained-model`
 
-Les tokens sensibles sont stockés dans **Settings > Secrets** du dépôt :
+### Etape 2 - Notification par email
 
-| Secret | Description |
-|--------|-------------|
-| `HF_TOKEN` | Token Hugging Face pour le déploiement |
-| `SMTP_USERNAME` | Adresse email pour les notifications |
-| `SMTP_PASSWORD` | Mot de passe d'application Gmail |
-| `TEAM_EMAILS` | Emails de l'équipe (séparés par des virgules) |
+Le job `notify` envoie un mail automatique via
+`dawidd6/action-send-mail` avec :
 
-## 🔄 CI/CD Pipeline
+- le statut du pipeline
+- le repository, la branche, le commit et l'auteur
+- les metriques du modele en cas de succes
+- le lien direct vers l'execution GitHub Actions
 
-Le workflow GitHub Actions (`.github/workflows/main.yml`) s'exécute à chaque PR vers `develop` ou `main` :
+### Etape 3 - Deploiement Hugging Face
 
-### Étape 1 : Tests et Validation
-- Vérification syntaxe (flake8)
-- Vérification formatage (black)
-- Entraînement du modèle
-- Tests unitaires (pytest)
-- Validation accuracy > 80%
+Sur un push vers `main`, le job `deploy` :
 
-### Étape 2 : Notification par Mail
-- Email automatique en cas de succès ou d'échec
-- Contient le rapport complet des analyses
-- Envoyé via `dawidd6/action-send-mail`
+1. telecharge l'artefact `trained-model`
+2. pousse les artefacts du modele vers `jackbrayan17/mlops-sentiment-analysis`
+3. pousse `app.py`, `requirements.txt` et `model/` vers le Space
+   `jackbrayan17/mlops-sentiment-analysis-demo`
 
-### Étape 3 : Déploiement (main uniquement)
-- Upload du modèle sur **Hugging Face Hub**
-- Mise à jour de l'application sur **Hugging Face Spaces**
+## Documentation wiki
 
-## 🤗 Déploiement Hugging Face
+Le contenu de wiki a ete prepare dans `docs/wiki/` pour faciliter la mise en
+ligne du wiki GitHub :
 
-- **Modèle** : [jackbrayan17/mlops-sentiment-analysis](https://huggingface.co/jackbrayan17/mlops-sentiment-analysis)
-- **Application** : [jackbrayan17/mlops-sentiment-analysis-demo](https://huggingface.co/spaces/jackbrayan17/mlops-sentiment-analysis-demo)
+- `Home.md`
+- `Git-Flow.md`
+- `Deployment.md`
 
-## 👥 Équipe
+## Livrables TP
 
-Projet réalisé dans le cadre du Master 2 IABD.
+Le depot contient deja :
 
----
+- un projet Python structure
+- un hook de pre-commit versionne
+- une configuration Git LFS
+- un workflow GitHub Actions complet
+- un script d'entrainement
+- des tests unitaires
+- une application Gradio
+- une base de documentation README + wiki source
 
-*Pipeline MLOps industrialisé avec Git Flow, Git LFS, GitHub Actions et Hugging Face.*
+## Hugging Face
+
+- Modele : [jackbrayan17/mlops-sentiment-analysis](https://huggingface.co/jackbrayan17/mlops-sentiment-analysis)
+- Application : [jackbrayan17/mlops-sentiment-analysis-demo](https://huggingface.co/spaces/jackbrayan17/mlops-sentiment-analysis-demo)
+
+## Equipe
+
+Projet realise dans le cadre du Master 2 IABD.

@@ -85,8 +85,24 @@ jobs:
     if: always()
 
     steps:
+      - name: Check SMTP configuration
+        id: smtp_check
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.SMTP_USERNAME }}" ] && [ -n "${{ secrets.SMTP_PASSWORD }}" ] && [ -n "${{ secrets.TEAM_EMAILS }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip email notification when SMTP secrets are missing
+        if: steps.smtp_check.outputs.enabled != 'true'
+        run: |
+          echo "SMTP secrets are missing. Skipping email notification."
+          echo "Expected secrets: SMTP_USERNAME, SMTP_PASSWORD, TEAM_EMAILS."
+
       - name: Notify success
-        if: needs.test.result == 'success'
+        if: steps.smtp_check.outputs.enabled == 'true' && needs.test.result == 'success'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -121,7 +137,7 @@ jobs:
             https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Notify failure
-        if: needs.test.result != 'success'
+        if: steps.smtp_check.outputs.enabled == 'true' && needs.test.result != 'success'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com

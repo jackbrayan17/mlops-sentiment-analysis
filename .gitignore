@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model checkpoints (intermediaires)
+model/checkpoint-*/
+model/runs/
+
+# Secrets - NE JAMAIS COMMIT
+.env
+*.key
+*credentials*
+*secret*
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Artefacts de training
+artifacts/

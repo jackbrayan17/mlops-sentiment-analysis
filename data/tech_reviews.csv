@@ -1,0 +1,56 @@
+split,text,label
+train,"This laptop is incredibly fast and the battery lasts all day.",1
+train,"The keyboard feels premium and typing on it is very comfortable.",1
+train,"Excellent headphones with deep bass and clear microphones.",1
+train,"This monitor has sharp colors and a sturdy adjustable stand.",1
+train,"The smartwatch setup was easy and the fitness tracking is accurate.",1
+train,"The tablet is responsive and perfect for note taking.",1
+train,"Great webcam, crisp image and smooth video during meetings.",1
+train,"This mechanical keyboard sounds great and the switches feel precise.",1
+train,"The router signal is strong even in the farthest room.",1
+train,"The phone camera performs well in low light and daylight.",1
+train,"Fast SSD, quick boot times, and no overheating issues so far.",1
+train,"The app interface is clean and the export feature works flawlessly.",1
+train,"These speakers are compact but the sound is surprisingly rich.",1
+train,"The gaming mouse is accurate and very comfortable for long sessions.",1
+train,"This charger fills my phone quickly and never gets too hot.",1
+train,"The laptop fan stays quiet even with multiple apps open.",1
+train,"Reliable printer with sharp text output and easy wireless setup.",1
+train,"The earbuds connect instantly and hold their charge for hours.",1
+train,"Setup was smooth and the software has a polished experience.",1
+train,"Amazing display quality, bright screen, and excellent contrast.",1
+train,"The customer support app solved my issue within minutes.",1
+train,"This smartphone freezes during basic tasks and feels very sluggish.",0
+train,"The battery drains before lunchtime and charging is painfully slow.",0
+train,"Terrible headphones, the left ear cuts out every few minutes.",0
+train,"This monitor arrived with dead pixels and constant flickering.",0
+train,"The smartwatch strap snapped after two days of normal use.",0
+train,"The tablet lags badly and the touchscreen misses taps.",0
+train,"Awful webcam, blurry picture and muffled audio.",0
+train,"These speakers distort at medium volume and sound tinny.",0
+train,"The keyboard keycaps started fading after one week.",0
+train,"This router drops the connection several times a day.",0
+train,"The phone overheats during simple video calls.",0
+train,"The app crashes every time I try to upload a file.",0
+train,"Poor microphone quality, my voice sounds distant and robotic.",0
+train,"This SSD failed after a month and corrupted several files.",0
+train,"The laptop hinge feels loose and the build quality is disappointing.",0
+train,"The printer jams constantly and wastes too much ink.",0
+train,"These earbuds disconnect randomly and hiss in the background.",0
+train,"The setup process is confusing and half the features do not work.",0
+train,"The camera produces noisy images and misses focus indoors.",0
+train,"Customer support never answered and the issue remained unresolved.",0
+test,"The laptop battery easily survives a full workday and the screen looks gorgeous.",1
+test,"Excellent phone with smooth performance and a sharp camera.",1
+test,"This headset sounds fantastic and the microphone is crystal clear.",1
+test,"The software feels polished and every feature works as expected.",1
+test,"Great monitor for remote work, bright panel and zero flicker.",1
+test,"This keyboard is comfortable, quiet, and very well built.",1
+test,"The smartwatch tracks workouts accurately and syncs instantly.",1
+test,"This smartphone overheats after ten minutes and the camera quality is awful.",0
+test,"The app is buggy, slow, and crashes whenever I save a project.",0
+test,"Poor build quality, the laptop creaks and the hinge feels weak.",0
+test,"These speakers sound flat and distort even at low volume.",0
+test,"The router keeps disconnecting and makes video meetings impossible.",0
+test,"The tablet is unresponsive and the battery life is terrible.",0
+test,"This webcam produces a dark, blurry image in every call.",0

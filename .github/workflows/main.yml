@@ -175,27 +175,47 @@ jobs:
       HF_SPACE_REPO: jackbrayan17/mlops-sentiment-analysis-demo
 
     steps:
+      - name: Check Hugging Face configuration
+        id: hf_check
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.HF_TOKEN }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip deployment when HF token is missing
+        if: steps.hf_check.outputs.enabled != 'true'
+        run: |
+          echo "HF_TOKEN is missing. Skipping Hugging Face deployment."
+
       - name: Checkout repository
+        if: steps.hf_check.outputs.enabled == 'true'
         uses: actions/checkout@v4
         with:
           lfs: true
 
       - name: Setup Python
+        if: steps.hf_check.outputs.enabled == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install deployment dependencies
+        if: steps.hf_check.outputs.enabled == 'true'
         run: |
           pip install huggingface-hub transformers torch
 
       - name: Download trained model
+        if: steps.hf_check.outputs.enabled == 'true'
         uses: actions/download-artifact@v4
         with:
           name: trained-model
           path: model/
 
       - name: Upload model to Hugging Face Hub
+        if: steps.hf_check.outputs.enabled == 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -218,6 +238,7 @@ jobs:
           "
 
       - name: Deploy Gradio app to Hugging Face Spaces
+        if: steps.hf_check.outputs.enabled == 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |

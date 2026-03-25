@@ -306,7 +306,7 @@ jobs:
                   repo_type="space",
                   token=token,
               )
-              space_reqs = "transformers>=4.46,<5\ntorch>=2.5,<3\ngradio>=5.4,<6\n"
+              space_reqs = "transformers>=4.46,<5\ntorch>=2.5,<3\nsafetensors>=0.4,<1\n"
               with open("space_requirements.txt", "w", encoding="utf-8") as handle:
                   handle.write(space_reqs)
               api.upload_file(
@@ -319,6 +319,13 @@ jobs:
               api.upload_folder(
                   folder_path="model",
                   path_in_repo="model",
+                  repo_id=repo_id,
+                  repo_type="space",
+                  token=token,
+              )
+              api.upload_folder(
+                  folder_path="src",
+                  path_in_repo="src",
                   repo_id=repo_id,
                   repo_type="space",
                   token=token,

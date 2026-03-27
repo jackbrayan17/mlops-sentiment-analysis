@@ -171,8 +171,8 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     env:
-      HF_MODEL_REPO: jackbrayan17/mlops-sentiment-analysis
-      HF_SPACE_REPO: jackbrayan17/mlops-sentiment-analysis-demo
+      HF_MODEL_NAME: mlops-sentiment-analysis
+      HF_SPACE_NAME: mlops-sentiment-analysis-demo
 
     steps:
       - name: Check Hugging Face configuration
@@ -207,6 +207,30 @@ jobs:
         run: |
           pip install huggingface-hub transformers torch
 
+      - name: Resolve Hugging Face namespace
+        if: steps.hf_check.outputs.enabled == 'true'
+        id: hf_namespace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          api = HfApi()
+          info = api.whoami(token=os.environ["HF_TOKEN"])
+          namespace = info["name"]
+          model_repo = f"{namespace}/{os.environ['HF_MODEL_NAME']}"
+          space_repo = f"{namespace}/{os.environ['HF_SPACE_NAME']}"
+
+          print(f"Resolved Hugging Face namespace: {namespace}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"namespace={namespace}\n")
+              handle.write(f"model_repo={model_repo}\n")
+              handle.write(f"space_repo={space_repo}\n")
+          PY
+
       - name: Download trained model
         if: steps.hf_check.outputs.enabled == 'true'
         uses: actions/download-artifact@v4
@@ -218,63 +242,100 @@ jobs:
         if: steps.hf_check.outputs.enabled == 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_MODEL_REPO: ${{ steps.hf_namespace.outputs.model_repo }}
         run: |
-          python -c "
+          python - <<'PY'
+          import os
           from huggingface_hub import HfApi
+          from huggingface_hub.errors import HfHubHTTPError
+
           api = HfApi()
-          api.create_repo(
-              repo_id='${{ env.HF_MODEL_REPO }}',
-              repo_type='model',
-              exist_ok=True,
-              token='${{ secrets.HF_TOKEN }}'
-          )
-          api.upload_folder(
-              folder_path='model',
-              repo_id='${{ env.HF_MODEL_REPO }}',
-              repo_type='model',
-              token='${{ secrets.HF_TOKEN }}'
-          )
-          print('Model uploaded to Hugging Face Hub')
-          "
+          repo_id = os.environ["HF_MODEL_REPO"]
+          token = os.environ["HF_TOKEN"]
+
+          try:
+              api.create_repo(
+                  repo_id=repo_id,
+                  repo_type="model",
+                  exist_ok=True,
+                  token=token,
+              )
+              api.upload_folder(
+                  folder_path="model",
+                  repo_id=repo_id,
+                  repo_type="model",
+                  token=token,
+              )
+          except HfHubHTTPError as error:
+              raise SystemExit(
+                  f"Failed to create or upload model repo '{repo_id}'. "
+                  "Ensure the HF token belongs to the expected account and has write permission. "
+                  f"Original error: {error}"
+              ) from error
+
+          print(f"Model uploaded to Hugging Face Hub: {repo_id}")
+          PY
 
       - name: Deploy Gradio app to Hugging Face Spaces
         if: steps.hf_check.outputs.enabled == 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_REPO: ${{ steps.hf_namespace.outputs.space_repo }}
         run: |
-          python -c "
+          python - <<'PY'
+          import os
           from huggingface_hub import HfApi
+          from huggingface_hub.errors import HfHubHTTPError
+
           api = HfApi()
-          api.create_repo(
-              repo_id='${{ env.HF_SPACE_REPO }}',
-              repo_type='space',
-              space_sdk='gradio',
-              exist_ok=True,
-              token='${{ secrets.HF_TOKEN }}'
-          )
-          api.upload_file(
-              path_or_fileobj='app.py',
-              path_in_repo='app.py',
-              repo_id='${{ env.HF_SPACE_REPO }}',
-              repo_type='space',
-              token='${{ secrets.HF_TOKEN }}'
-          )
-          space_reqs = 'transformers>=4.46,<5\ntorch>=2.5,<3\ngradio>=5.4,<6\n'
-          with open('space_requirements.txt', 'w', encoding='utf-8') as handle:
-              handle.write(space_reqs)
-          api.upload_file(
-              path_or_fileobj='space_requirements.txt',
-              path_in_repo='requirements.txt',
-              repo_id='${{ env.HF_SPACE_REPO }}',
-              repo_type='space',
-              token='${{ secrets.HF_TOKEN }}'
-          )
-          api.upload_folder(
-              folder_path='model',
-              path_in_repo='model',
-              repo_id='${{ env.HF_SPACE_REPO }}',
-              repo_type='space',
-              token='${{ secrets.HF_TOKEN }}'
-          )
-          print('Gradio app deployed to Hugging Face Spaces')
-          "
+          repo_id = os.environ["HF_SPACE_REPO"]
+          token = os.environ["HF_TOKEN"]
+
+          try:
+              api.create_repo(
+                  repo_id=repo_id,
+                  repo_type="space",
+                  space_sdk="gradio",
+                  exist_ok=True,
+                  token=token,
+              )
+              api.upload_file(
+                  path_or_fileobj="app.py",
+                  path_in_repo="app.py",
+                  repo_id=repo_id,
+                  repo_type="space",
+                  token=token,
+              )
+              space_reqs = "transformers>=4.46,<5\ntorch>=2.5,<3\nsafetensors>=0.4,<1\n"
+              with open("space_requirements.txt", "w", encoding="utf-8") as handle:
+                  handle.write(space_reqs)
+              api.upload_file(
+                  path_or_fileobj="space_requirements.txt",
+                  path_in_repo="requirements.txt",
+                  repo_id=repo_id,
+                  repo_type="space",
+                  token=token,
+              )
+              api.upload_folder(
+                  folder_path="model",
+                  path_in_repo="model",
+                  repo_id=repo_id,
+                  repo_type="space",
+                  token=token,
+              )
+              api.upload_folder(
+                  folder_path="src",
+                  path_in_repo="src",
+                  repo_id=repo_id,
+                  repo_type="space",
+                  token=token,
+              )
+          except HfHubHTTPError as error:
+              raise SystemExit(
+                  f"Failed to create or update Hugging Face Space '{repo_id}'. "
+                  "Ensure the HF token belongs to the expected account and has write permission. "
+                  f"Original error: {error}"
+              ) from error
+
+          print(f"Gradio app deployed to Hugging Face Spaces: {repo_id}")
+          PY
